@@ -6,11 +6,13 @@ import { motion } from "framer-motion";
 import { Building, Calendar, Users, PlusCircle, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { API_BASE_URL } from "@/lib/api";
 
 export default function AdminDrivesPage() {
     const { token } = useAuth();
     const router = useRouter();
-    const [drives, setDrives] = useState([]);
+    const [upcomingDrives, setUpcomingDrives] = useState<any[]>([]);
+    const [ongoingDrives, setOngoingDrives] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState("");
     const [showForm, setShowForm] = useState(false);
@@ -19,7 +21,7 @@ export default function AdminDrivesPage() {
         company_name: "",
         role: "",
         description: "",
-        eligible_departments: [],
+        eligible_departments: [] as string[],
         drive_date: "",
         application_deadline: ""
     });
@@ -33,12 +35,13 @@ export default function AdminDrivesPage() {
     const fetchDrives = async () => {
         if (!token) return;
         try {
-            const res = await fetch("http://localhost:5000/api/admin/drives", {
+            const res = await fetch(`${API_BASE_URL}/api/admin/drives`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 const data = await res.json();
-                setDrives(data);
+                setUpcomingDrives(data.upcoming_drives || []);
+                setOngoingDrives(data.ongoing_drives || []);
             }
         } catch (error) {
             console.error("Error fetching drives:", error);
@@ -47,7 +50,7 @@ export default function AdminDrivesPage() {
         }
     };
 
-    const handleDepartmentToggle = (dept) => {
+    const handleDepartmentToggle = (dept: string) => {
         setFormData(prev => ({
             ...prev,
             eligible_departments: prev.eligible_departments.includes(dept)
@@ -56,12 +59,12 @@ export default function AdminDrivesPage() {
         }));
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage("");
 
         try {
-            const res = await fetch("http://localhost:5000/api/admin/drives", {
+            const res = await fetch(`${API_BASE_URL}/api/admin/drives`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -90,15 +93,15 @@ export default function AdminDrivesPage() {
     if (loading) return <div className="p-8 text-center text-gray-500">Loading active drives...</div>;
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-12">
-            <div className="flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 animate-fade-in pb-12 pt-8">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Placement Drives</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Placement Drives</h1>
                     <p className="text-gray-500 mt-1">Manage active placement drives and create new ones.</p>
                 </div>
                 <button
                     onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-sm"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-sm"
                 >
                     <PlusCircle className="h-5 w-5" />
                     {showForm ? "Cancel" : "Create Drive"}
@@ -166,8 +169,8 @@ export default function AdminDrivesPage() {
                                         key={dept}
                                         onClick={() => handleDepartmentToggle(dept)}
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${formData.eligible_departments.includes(dept)
-                                                ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
-                                                : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                                            ? 'bg-indigo-100 border-indigo-200 text-indigo-700'
+                                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
                                             }`}
                                     >
                                         {dept}
@@ -209,7 +212,7 @@ export default function AdminDrivesPage() {
                 </motion.div>
             )}
 
-            {drives.length === 0 && !showForm ? (
+            {upcomingDrives.length === 0 && ongoingDrives.length === 0 && !showForm ? (
                 <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
                     <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Building className="h-8 w-8 text-gray-400" />
@@ -218,43 +221,104 @@ export default function AdminDrivesPage() {
                     <p className="text-gray-500 mt-1">You haven't created any placement drives yet.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {drives.map((drive) => (
-                        <Link href={`/admin/drives/${drive.id}`} key={drive.id}>
-                            <motion.div
-                                whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
-                                className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col h-full cursor-pointer hover:border-indigo-100"
-                            >
-                                <div className="flex items-start justify-between mb-4">
-                                    <div>
-                                        <h3 className="text-xl font-bold text-gray-900">{drive.company_name}</h3>
-                                        <p className="text-indigo-600 font-medium">{drive.role}</p>
-                                    </div>
-                                    <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
-                                        <Users className="h-5 w-5" />
-                                    </div>
-                                </div>
+                <div className="space-y-12">
+                    {/* Ongoing Drives Section */}
+                    {ongoingDrives.length > 0 && !showForm && (
+                        <div>
+                            <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Ongoing Drives
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {ongoingDrives.map((drive) => (
+                                    <Link href={`/admin/drives/${drive.id}`} key={drive.id}>
+                                        <motion.div
+                                            whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                                            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col h-full cursor-pointer hover:border-indigo-100 relative overflow-hidden"
+                                        >
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-50 rounded-bl-[100px] -z-0"></div>
+                                            <div className="flex items-start justify-between mb-4 relative z-10">
+                                                <div>
+                                                    <h3 className="text-xl font-bold text-gray-900">{drive.company_name}</h3>
+                                                    <p className="text-emerald-600 font-medium">{drive.role}</p>
+                                                </div>
+                                                <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
+                                                    <Users className="h-5 w-5" />
+                                                </div>
+                                            </div>
 
-                                <p className="text-sm text-gray-600 mb-6 flex-grow line-clamp-2">{drive.description}</p>
+                                            <p className="text-sm text-gray-600 mb-6 flex-grow line-clamp-2 relative z-10">{drive.description}</p>
 
-                                <div className="space-y-3 mb-4">
-                                    <div className="flex items-center text-sm text-gray-500">
-                                        <Calendar className="h-4 w-4 mr-2" />
-                                        Drive: {new Date(drive.drive_date).toLocaleDateString()}
-                                    </div>
-                                    <div className="flex items-center text-sm text-red-500 font-medium">
-                                        <Calendar className="h-4 w-4 mr-2" />
-                                        Deadline: {new Date(drive.application_deadline).toLocaleDateString()}
-                                    </div>
-                                </div>
+                                            <div className="space-y-3 mb-4 relative z-10">
+                                                <div className="flex items-center text-sm text-emerald-700 font-medium">
+                                                    <Calendar className="h-4 w-4 mr-2" />
+                                                    Drive: {new Date(drive.drive_date).toLocaleDateString()}
+                                                </div>
+                                                <div className="flex items-center text-sm text-red-500 font-medium">
+                                                    <Calendar className="h-4 w-4 mr-2" />
+                                                    Deadline: {new Date(drive.application_deadline).toLocaleDateString()}
+                                                </div>
+                                            </div>
 
-                                <div className="mt-auto pt-4 border-t border-gray-50 text-indigo-600 text-sm font-medium flex items-center justify-between">
-                                    <span>Manage Applicants</span>
-                                    <span>&rarr;</span>
-                                </div>
-                            </motion.div>
-                        </Link>
-                    ))}
+                                            <div className="mt-auto pt-4 border-t border-gray-50 text-emerald-600 text-sm font-medium flex items-center justify-between relative z-10">
+                                                <span>Manage Applicants</span>
+                                                <span>&rarr;</span>
+                                            </div>
+                                        </motion.div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Upcoming Drives Section */}
+                    {upcomingDrives.length > 0 && !showForm && (
+                        <div>
+                            <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                Upcoming Drives
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {upcomingDrives.map((drive) => (
+                                    <Link href={`/admin/drives/${drive.id}`} key={drive.id}>
+                                        <motion.div
+                                            whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" }}
+                                            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col h-full cursor-pointer hover:border-indigo-100 relative overflow-hidden opacity-95 hover:opacity-100 transition-opacity"
+                                        >
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-50 rounded-bl-[100px] -z-0"></div>
+                                            <div className="flex items-start justify-between mb-4 relative z-10">
+                                                <div>
+                                                    <h3 className="text-xl font-bold text-gray-900">{drive.company_name}</h3>
+                                                    <p className="text-indigo-600 font-medium">{drive.role}</p>
+                                                </div>
+                                                <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
+                                                    <Users className="h-5 w-5" />
+                                                </div>
+                                            </div>
+
+                                            <p className="text-sm text-gray-600 mb-6 flex-grow line-clamp-2 relative z-10">{drive.description}</p>
+
+                                            <div className="space-y-3 mb-4 relative z-10">
+                                                <div className="flex items-center text-sm text-indigo-700 font-medium">
+                                                    <Calendar className="h-4 w-4 mr-2" />
+                                                    Drive: {new Date(drive.drive_date).toLocaleDateString()}
+                                                </div>
+                                                <div className="flex items-center text-sm text-gray-500">
+                                                    <Calendar className="h-4 w-4 mr-2" />
+                                                    Deadline: {new Date(drive.application_deadline).toLocaleDateString()}
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-auto pt-4 border-t border-gray-50 text-indigo-600 text-sm font-medium flex items-center justify-between relative z-10">
+                                                <span>Manage Applicants</span>
+                                                <span>&rarr;</span>
+                                            </div>
+                                        </motion.div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

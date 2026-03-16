@@ -7,6 +7,7 @@ import { Users, CheckCircle, Search, FileText, Activity, Clock, SlidersHorizonta
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "@/lib/api";
 import { motion } from "framer-motion";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,8 @@ export default function AdminDashboard() {
         avgProjects: 0
     });
     const [statsLoading, setStatsLoading] = useState(true);
-    const [drives, setDrives] = useState([]);
+    const [upcomingDrives, setUpcomingDrives] = useState<any[]>([]);
+    const [ongoingDrives, setOngoingDrives] = useState<any[]>([]);
 
     useEffect(() => {
         if (!loading && !user) router.push('/login/admin');
@@ -29,7 +31,7 @@ export default function AdminDashboard() {
 
         if (user && user.role === 'admin' && token) {
             // Fetch stats
-            axios.get('http://localhost:5000/api/admin/dashboard-stats', {
+            axios.get(`${API_BASE_URL}/api/admin/dashboard-stats`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
                 .then(res => {
@@ -42,12 +44,12 @@ export default function AdminDashboard() {
                     setStatsLoading(false);
                 });
 
-            // Fetch active drives
-            axios.get('http://localhost:5000/api/admin/drives', {
+            axios.get(`${API_BASE_URL}/api/admin/drives`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
                 .then(res => {
-                    setDrives(res.data);
+                    setUpcomingDrives(res.data.upcoming_drives || []);
+                    setOngoingDrives(res.data.ongoing_drives || []);
                 })
                 .catch(err => console.error("Failed to fetch drives", err));
         }
@@ -117,8 +119,8 @@ export default function AdminDashboard() {
                 className="flex flex-col md:flex-row md:items-center justify-between gap-4"
             >
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                        {user?.department ? `${user.department} Control Center` : "Control Center"}
+                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">
+                        {user?.department ? `Welcome, ${user.department} Coordinator` : "Welcome, Coordinator"}
                     </h1>
                     <p className="text-slate-500 mt-1">
                         {user?.department
@@ -132,7 +134,7 @@ export default function AdminDashboard() {
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
             >
                 {statCards.map((stat, i) => (
                     stat.link ? (
@@ -225,9 +227,9 @@ export default function AdminDashboard() {
                             <Activity className="w-4 h-4 text-indigo-500" /> Placement Success Rate
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="pt-6 h-64 flex flex-col justify-center items-center">
+                    <CardContent className="pt-6 h-64 flex flex-col justify-center items-center w-full">
                         {statsLoading ? (
-                            <div className="w-40 h-40 rounded-full border-8 border-slate-100 border-t-indigo-200 animate-spin"></div>
+                            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-8 border-slate-100 border-t-indigo-200 animate-spin"></div>
                         ) : stats.totalStudents === 0 ? (
                             <p className="text-sm text-slate-500">No student data available.</p>
                         ) : (
@@ -265,16 +267,16 @@ export default function AdminDashboard() {
                 transition={{ delay: 0.4 }}
                 className="w-full mt-8"
             >
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
+                    <h2 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
                         <Building className="h-5 w-5 text-indigo-500" /> Active Placement Drives
                     </h2>
-                    <Link href="/admin/drives" className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                    <Link href="/admin/drives" className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 self-start sm:self-auto">
                         View All <ArrowRight className="h-4 w-4" />
                     </Link>
                 </div>
 
-                {drives.length === 0 ? (
+                {upcomingDrives.length === 0 && ongoingDrives.length === 0 ? (
                     <Card className="border-slate-200 shadow-sm bg-white p-8 text-center">
                         <p className="text-slate-500">No active placement drives found.</p>
                         <Link href="/admin/drives">
@@ -283,7 +285,7 @@ export default function AdminDashboard() {
                     </Card>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {drives.slice(0, 3).map((drive) => (
+                        {[...upcomingDrives, ...ongoingDrives].slice(0, 3).map((drive) => (
                             <Link href={`/admin/drives/${drive.id}`} key={drive.id}>
                                 <Card className="h-full border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer">
                                     <CardHeader className="pb-2">
@@ -303,7 +305,7 @@ export default function AdminDashboard() {
                                             <div className="mt-4 pt-3 border-t border-slate-50">
                                                 <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Eligible</p>
                                                 <div className="flex flex-wrap gap-1.5">
-                                                    {drive.eligible_departments.split(',').map((dept, i) => (
+                                                    {drive.eligible_departments.split(',').map((dept: string, i: number) => (
                                                         <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs font-medium">
                                                             {dept.trim()}
                                                         </span>

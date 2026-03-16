@@ -1,0 +1,29 @@
+﻿1. Connecting to DB to get an admin...
+Using admin: admin@college.com (ID: 1)
+
+2. Testing GET /admin/profile...
+Status: 200, Text: {"id":1,"name":"Placement Officer","email":"admin@college.com","department":"DS","email_notification
+GET Response: {
+  id: 1,
+  name: 'Placement Officer',
+  email: 'admin@college.com',
+  department: 'DS',
+  email_notifications: 1,
+  theme: 'light'
+}
+
+3. Testing PUT /admin/profile (update preferences)...
+PUT Response (preferences): { message: 'Settings updated successfully' }
+
+4. Verifying DB changes...
+DB State: {
+  name: 'Placement Officer Updated',
+  email_notifications: 0,
+  theme: 'dark'
+}
+
+5. Testing PUT /admin/profile (invalid password change)...
+Expected failure: Incorrect current password
+
+6. Reverting preferences...
+Preferences reverted successfully.

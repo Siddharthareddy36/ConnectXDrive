@@ -2,8 +2,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
-const generateToken = (id, role, department = null) => {
-    return jwt.sign({ id, role, department }, process.env.JWT_SECRET, {
+const generateToken = (id, role, email = null, department = null) => {
+    return jwt.sign({ id, role, email, department }, process.env.JWT_SECRET, {
         expiresIn: '30d',
     });
 };
@@ -13,11 +13,6 @@ const generateToken = (id, role, department = null) => {
 // @access  Public
 const registerStudent = async (req, res) => {
     const { name, roll_no, email, password, branch } = req.body;
-
-    const ALLOWED_BRANCHES = ['DS', 'IT', 'AIML', 'CS-Cybersecurity', 'CSE'];
-    if (!ALLOWED_BRANCHES.includes(branch)) {
-        return res.status(400).json({ message: 'Invalid branch selected' });
-    }
 
     try {
         const [existingStudent] = await db.query(
@@ -42,7 +37,7 @@ const registerStudent = async (req, res) => {
             name,
             email,
             role: 'student',
-            token: generateToken(result.insertId, 'student'),
+            token: generateToken(result.insertId, 'student', email),
         });
     } catch (error) {
         console.error(error);
@@ -60,13 +55,19 @@ const loginStudent = async (req, res) => {
         const [students] = await db.query('SELECT * FROM students WHERE email = ?', [email]);
         const student = students[0];
 
-        if (student && (await bcrypt.compare(password, student.password))) {
+        if (!student || !student.password) {
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+
+        const isMatch = await bcrypt.compare(password, student.password);
+
+        if (isMatch) {
             res.json({
                 id: student.id,
                 name: student.name,
                 email: student.email,
                 role: 'student',
-                token: generateToken(student.id, 'student'),
+                token: generateToken(student.id, 'student', student.email),
             });
         } else {
             res.status(401).json({ message: 'Invalid email or password' });
@@ -86,6 +87,11 @@ const loginAdmin = async (req, res) => {
     try {
         const [admins] = await db.query('SELECT * FROM admins WHERE email = ?', [email]);
         const admin = admins[0];
+        
+        if (admin) {
+            console.log('DB Hash:', admin.password);
+            console.log('Plain Pass:', password);
+        }
 
         if (admin && (await bcrypt.compare(password, admin.password))) {
             res.json({
@@ -94,7 +100,7 @@ const loginAdmin = async (req, res) => {
                 email: admin.email,
                 role: 'admin',
                 department: admin.department,
-                token: generateToken(admin.id, 'admin', admin.department),
+                token: generateToken(admin.id, 'admin', admin.email, admin.department),
             });
         } else {
             res.status(401).json({ message: 'Invalid email or password' });

@@ -4,26 +4,20 @@ const db = require('../config/db');
 // @route   GET /api/admin/students
 // @access  Private (Admin)
 const getAllStudents = async (req, res) => {
-    const { min_cgpa, branch, skills, internship, has_projects } = req.query;
+    const { min_cgpa, skills, internship, has_projects } = req.query;
 
     let query = 'SELECT s.* FROM students s';
     let conditions = [];
     let params = [];
 
-    // Restrict admin to their department
-    if (req.user.role === 'admin' && req.user.department) {
-        conditions.push('s.branch = ?');
-        params.push(req.user.department);
-    }
+    // Strictly enforce department
+    conditions.push('s.branch = ?');
+    params.push(req.user.department);
 
     // Basic filters
     if (min_cgpa) {
         conditions.push('s.cgpa >= ?');
         params.push(min_cgpa);
-    }
-    if (branch) {
-        conditions.push('s.branch = ?');
-        params.push(branch);
     }
     if (internship === 'true') {
         conditions.push("(s.internship_details IS NOT NULL AND s.internship_details != '')");
@@ -108,20 +102,29 @@ const getAllStudents = async (req, res) => {
 // @access  Private (Admin)
 const getStudentDetails = async (req, res) => {
     try {
-        const [students] = await db.query('SELECT * FROM students WHERE id = ?', [req.params.id]);
+        let query = 'SELECT * FROM students WHERE id = ?';
+        let params = [req.params.id];
+
+        const [students] = await db.query(query, params);
         if (students.length === 0) {
             return res.status(404).json({ message: 'Student not found' });
+        }
+        
+        if (students[0].branch !== req.user.department) {
+            return res.status(403).json({ message: 'Forbidden: Student belongs to a different department' });
         }
         const student = students[0];
         delete student.password;
 
-        const [skills] = await db.query('SELECT skill_name FROM skills WHERE student_id = ?', [req.params.id]);
-        student.skills = skills.map(s => s.skill_name);
-
+        const [skills] = await db.query('SELECT * FROM skills WHERE student_id = ?', [req.params.id]);
+        
         const [projects] = await db.query('SELECT * FROM projects WHERE student_id = ?', [req.params.id]);
-        student.projects = projects;
 
-        res.json(student);
+        res.json({
+            student,
+            skills,
+            projects
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
@@ -133,7 +136,24 @@ const getStudentDetails = async (req, res) => {
 // @access  Private (Admin)
 const approveStudent = async (req, res) => {
     try {
-        await db.query('UPDATE students SET is_approved = TRUE WHERE id = ?', [req.params.id]);
+        // Enforce department check first
+        const [studentCheck] = await db.query('SELECT branch FROM students WHERE id = ?', [req.params.id]);
+        if (studentCheck.length === 0) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+        if (studentCheck[0].branch !== req.user.department) {
+            return res.status(403).json({ message: 'Forbidden: Cannot approve student from a different department' });
+        }
+
+        let query = 'UPDATE students SET is_approved = TRUE WHERE id = ?';
+        let params = [req.params.id];
+
+        const [result] = await db.query(query, params);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Student not found' });
+        }
+
         res.json({ message: 'Student approved' });
     } catch (error) {
         console.error(error);
@@ -146,16 +166,14 @@ const approveStudent = async (req, res) => {
 // @access  Private (Admin)
 const getDashboardStats = async (req, res) => {
     try {
-        const department = req.user.department;
-
         const [totalStudents] = await db.query(
             'SELECT COUNT(*) AS count FROM students WHERE branch = ?',
-            [department]
+            [req.user.department]
         );
 
         const [approvedStudents] = await db.query(
-            'SELECT COUNT(*) AS count FROM students WHERE branch = ? AND is_approved = TRUE',
-            [department]
+            'SELECT COUNT(*) AS count FROM students WHERE is_approved = TRUE AND branch = ?',
+            [req.user.department]
         );
 
         const [projectsData] = await db.query(
@@ -166,7 +184,7 @@ const getDashboardStats = async (req, res) => {
                 WHERE s.branch = ?
                 GROUP BY s.id
             ) AS subquery`,
-            [department]
+            [req.user.department]
         );
 
         res.json({
@@ -178,41 +196,6 @@ const getDashboardStats = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
-    }
-};
-
-// @desc    Add a new department admin
-// @route   POST /api/admin/add-new
-// @access  Private (Admin)
-const addNewAdmin = async (req, res) => {
-    const { name, email, department, password } = req.body;
-
-    if (!name || !email || !department || !password) {
-        return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    try {
-        // Check if admin email already exists
-        const [existingAdmins] = await db.query('SELECT * FROM admins WHERE email = ?', [email]);
-        if (existingAdmins.length > 0) {
-            return res.status(400).json({ message: 'Coordinator already registered' });
-        }
-
-        // Hash password
-        const bcrypt = require('bcryptjs');
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Insert new admin
-        await db.query(
-            'INSERT INTO admins (name, email, password, department) VALUES (?, ?, ?, ?)',
-            [name, email, hashedPassword, department]
-        );
-
-        res.status(201).json({ message: 'New Admin added successfully' });
-    } catch (error) {
-        console.error('Error adding new admin:', error);
-        res.status(500).json({ message: 'Server error adding new admin' });
     }
 };
 
@@ -259,11 +242,18 @@ const createDrive = async (req, res) => {
 // @access  Private (Admin)
 const getAdminDrives = async (req, res) => {
     try {
-        const [drives] = await db.query(
-            "SELECT * FROM placement_drives WHERE created_by = ? AND status = 'active' ORDER BY created_at DESC",
+        const [upcoming_drives] = await db.query(
+            "SELECT * FROM placement_drives WHERE created_by = ? AND COALESCE(drive_start_date, drive_date) > CURDATE() AND status = 'active' ORDER BY COALESCE(drive_start_date, drive_date) ASC",
             [req.user.id]
         );
-        res.json(drives);
+        const [ongoing_drives] = await db.query(
+            "SELECT * FROM placement_drives WHERE created_by = ? AND COALESCE(drive_start_date, drive_date) <= CURDATE() AND status = 'active' ORDER BY COALESCE(drive_start_date, drive_date) DESC",
+            [req.user.id]
+        );
+        res.json({
+            upcoming_drives,
+            ongoing_drives
+        });
     } catch (error) {
         console.error('Error fetching drives:', error);
         res.status(500).json({ message: 'Server error' });
@@ -279,15 +269,9 @@ const getDriveApplicants = async (req, res) => {
             SELECT a.id as application_id, s.id as student_id, s.name, s.cgpa, s.branch, s.resume_path, a.status, a.applied_at
             FROM drive_applications a
             JOIN students s ON a.student_id = s.id
-            WHERE a.drive_id = ?
+            WHERE a.drive_id = ? AND s.branch = ?
         `;
-        let params = [req.params.drive_id];
-
-        // Restrict admin to their department
-        if (req.user.role === 'admin' && req.user.department) {
-            query += ' AND s.branch = ?';
-            params.push(req.user.department);
-        }
+        let params = [req.params.drive_id, req.user.department];
 
         const [applicants] = await db.query(query, params);
 
@@ -310,25 +294,12 @@ const updateApplicationStatus = async (req, res) => {
     else return res.status(400).json({ message: 'Invalid action' });
 
     try {
-        // Validation: Verify the student belongs to the admin's department
-        if (req.user.role === 'admin' && req.user.department) {
-            const [studentData] = await db.query(`
-                SELECT s.branch 
-                FROM students s
-                JOIN drive_applications a ON a.student_id = s.id
-                WHERE a.id = ?
-            `, [req.params.id]);
+        const [result] = await db.query('UPDATE drive_applications SET status = ? WHERE id = ?', [newStatus, req.params.id]);
 
-            if (studentData.length === 0) {
-                return res.status(404).json({ message: 'Application not found' });
-            }
-
-            if (studentData[0].branch !== req.user.department) {
-                return res.status(403).json({ message: 'Forbidden: Cannot modify applications outside your department' });
-            }
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Application not found' });
         }
 
-        await db.query('UPDATE drive_applications SET status = ? WHERE id = ?', [newStatus, req.params.id]);
         res.json({ message: `Application ${newStatus} successfully` });
     } catch (error) {
         console.error('Error updating application status:', error);
@@ -345,15 +316,9 @@ const getShortlistExport = async (req, res) => {
             SELECT s.name, s.email, s.branch, s.cgpa, s.phone, s.github, s.portfolio
             FROM drive_applications a
             JOIN students s ON a.student_id = s.id
-            WHERE a.drive_id = ? AND a.status = 'shortlisted'
+            WHERE a.drive_id = ? AND a.status = 'shortlisted' AND s.branch = ?
         `;
-        let params = [req.params.drive_id];
-
-        // Restrict admin to their department
-        if (req.user.role === 'admin' && req.user.department) {
-            query += ' AND s.branch = ?';
-            params.push(req.user.department);
-        }
+        let params = [req.params.drive_id, req.user.department];
 
         const [shortlist] = await db.query(query, params);
 
@@ -364,7 +329,204 @@ const getShortlistExport = async (req, res) => {
     }
 };
 
+// @desc    Get admin profile
+// @route   GET /api/admin/profile
+// @access  Private (Admin)
+const getAdminProfile = async (req, res) => {
+    try {
+        const [admins] = await db.query(
+            'SELECT id, name, email, department, email_notifications, theme FROM admins WHERE id = ?',
+            [req.user.id]
+        );
+
+        if (admins.length === 0) {
+            return res.status(404).json({ message: 'Admin not found' });
+        }
+
+        res.json(admins[0]);
+    } catch (error) {
+        console.error('Error fetching admin profile:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Update admin profile & settings
+// @route   PUT /api/admin/profile
+// @access  Private (Admin)
+const updateAdminProfile = async (req, res) => {
+    const { name, currentPassword, newPassword, email_notifications, theme } = req.body;
+
+    try {
+        const [admins] = await db.query('SELECT * FROM admins WHERE id = ?', [req.user.id]);
+        if (admins.length === 0) {
+            return res.status(404).json({ message: 'Admin not found' });
+        }
+
+        const admin = admins[0];
+
+        let updateQuery = 'UPDATE admins SET name = ?, email_notifications = ?, theme = ?';
+        let updateParams = [
+            name || admin.name,
+            email_notifications !== undefined ? email_notifications : admin.email_notifications,
+            theme || admin.theme
+        ];
+
+        // Handle password update
+        if (currentPassword && newPassword) {
+            const bcrypt = require('bcryptjs');
+            const isMatch = await bcrypt.compare(currentPassword, admin.password);
+
+            if (!isMatch) {
+                return res.status(400).json({ message: 'Incorrect current password' });
+            }
+
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+            updateQuery += ', password = ?';
+            updateParams.push(hashedPassword);
+        }
+
+        updateQuery += ' WHERE id = ?';
+        updateParams.push(req.user.id);
+
+        await db.query(updateQuery, updateParams);
+
+        res.json({ message: 'Settings updated successfully' });
+    } catch (error) {
+        console.error('Error updating admin profile:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Register a new admin (Admin restricted)
+// @route   POST /api/admin/register-new
+// @access  Private (Admin)
+const registerNewAdmin = async (req, res) => {
+    const { name, email, department, password } = req.body;
+
+    if (!name || !email || !department || !password) {
+        return res.status(400).json({ message: 'Please provide all required fields' });
+    }
+
+    try {
+        // Check if email already exists
+        const [existing] = await db.query('SELECT id FROM admins WHERE email = ?', [email]);
+        if (existing.length > 0) {
+            return res.status(400).json({ message: 'Admin with this email already exists' });
+        }
+
+        const bcrypt = require('bcryptjs');
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        await db.query(
+            'INSERT INTO admins (name, email, password, department) VALUES (?, ?, ?, ?)',
+            [name, email, hashedPassword, department]
+        );
+
+        res.status(201).json({ message: 'Admin registered successfully' });
+    } catch (error) {
+        console.error('Error registering new admin:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Get admin settings
+// @route   GET /api/admin/settings
+// @access  Private (Admin)
+const getSettings = async (req, res) => {
+    try {
+        const [admins] = await db.query('SELECT name, email, department FROM admins WHERE id = ?', [req.user.id]);
+        if (admins.length === 0) return res.status(404).json({ message: 'Admin not found' });
+        
+        const [prefs] = await db.query('SELECT drive_notifications, application_updates, shortlist_alerts FROM notification_preferences WHERE user_id = ? AND role = "admin"', [req.user.id]);
+        
+        const settings = {
+            profile: {
+                name: admins[0].name,
+                email: admins[0].email,
+                department: admins[0].department
+            },
+            notifications: prefs.length > 0 ? prefs[0] : { drive_notifications: true, application_updates: true, shortlist_alerts: true }
+        };
+        
+        res.json(settings);
+    } catch (error) {
+        console.error('Error fetching settings:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Update admin profile
+// @route   PUT /api/admin/update-profile
+// @access  Private (Admin)
+const updateProfile = async (req, res) => {
+    const { name, email } = req.body;
+    try {
+        await db.query('UPDATE admins SET name = ?, email = ? WHERE id = ?', [name, email, req.user.id]);
+        
+        const [updatedAdmin] = await db.query('SELECT id, name, email, department FROM admins WHERE id = ?', [req.user.id]);
+        res.json({ message: 'Profile updated successfully', admin: updatedAdmin[0] });
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Change admin password
+// @route   PUT /api/admin/change-password
+// @access  Private (Admin)
+const changePassword = async (req, res) => {
+    const { current_password, new_password } = req.body;
+    try {
+        const [admins] = await db.query('SELECT password FROM admins WHERE id = ?', [req.user.id]);
+        if (admins.length === 0) return res.status(404).json({ message: 'Admin not found' });
+        
+        const bcrypt = require('bcryptjs');
+        const isMatch = await bcrypt.compare(current_password, admins[0].password);
+        if (!isMatch) return res.status(400).json({ message: 'Incorrect current password' });
+        
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(new_password, salt);
+        
+        await db.query('UPDATE admins SET password = ? WHERE id = ?', [hashedPassword, req.user.id]);
+        res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+        console.error('Error changing password:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Update admin notification settings
+// @route   PUT /api/admin/notification-settings
+// @access  Private (Admin)
+const updateNotificationSettings = async (req, res) => {
+    const { drive_notifications, application_updates, shortlist_alerts } = req.body;
+    try {
+        const [existing] = await db.query('SELECT id FROM notification_preferences WHERE user_id = ? AND role = "admin"', [req.user.id]);
+        
+        if (existing.length > 0) {
+            await db.query(`UPDATE notification_preferences 
+                SET drive_notifications = ?, application_updates = ?, shortlist_alerts = ? 
+                WHERE id = ?`, 
+                [drive_notifications, application_updates, shortlist_alerts, existing[0].id]);
+        } else {
+            await db.query(`INSERT INTO notification_preferences 
+                (user_id, role, drive_notifications, application_updates, shortlist_alerts) 
+                VALUES (?, "admin", ?, ?, ?)`, 
+                [req.user.id, drive_notifications, application_updates, shortlist_alerts]);
+        }
+        res.json({ message: 'Notification preferences updated successfully' });
+    } catch (error) {
+        console.error('Error updating notifications:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
-    getAllStudents, getStudentDetails, approveStudent, getDashboardStats, addNewAdmin,
-    createDrive, getAdminDrives, getDriveApplicants, updateApplicationStatus, getShortlistExport
+    getAllStudents, getStudentDetails, approveStudent, getDashboardStats,
+    createDrive, getAdminDrives, getDriveApplicants, updateApplicationStatus, getShortlistExport,
+    getAdminProfile, updateAdminProfile, registerNewAdmin,
+    getSettings, updateProfile, changePassword, updateNotificationSettings
 };

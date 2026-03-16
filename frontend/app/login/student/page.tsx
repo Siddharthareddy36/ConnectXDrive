@@ -47,8 +47,9 @@ export default function StudentLogin() {
                     <div className="inline-flex items-center justify-center p-4 bg-blue-100 rounded-full mb-4 shadow-sm ring-1 ring-blue-200">
                         <GraduationCap className="h-8 w-8 text-blue-600" />
                     </div>
-                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Student Portal</h2>
-                    <p className="mt-2 text-sm text-slate-500">Welcome back! Sign in to manage your placement profile.</p>
+                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">ConnectXDrive</h2>
+                    <p className="mt-2 text-sm text-slate-500">Campus Placement Intelligence System</p>
+                    <p className="mt-1 text-xs text-blue-500 font-medium">Student Portal - Manage your placement profile</p>
                 </div>
 
                 <Card className="border-slate-200 shadow-xl shadow-slate-200/50 bg-white/80 backdrop-blur-xl">

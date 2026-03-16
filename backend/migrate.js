@@ -1,53 +1,28 @@
 const db = require('./config/db');
 
-const migrate = async () => {
+async function migrate() {
     try {
-        console.log('Running migrations...');
+        console.log("Adding personal_email...");
+        await db.query("ALTER TABLE students ADD COLUMN personal_email VARCHAR(255) NULL");
+    } catch (e) { console.log(e.message); }
 
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS placement_drives (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                company_name VARCHAR(255),
-                role VARCHAR(255),
-                description TEXT,
-                eligible_departments VARCHAR(255),
-                drive_date DATE,
-                application_deadline DATE,
-                created_by INT,
-                status VARCHAR(50) DEFAULT 'active',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log('created placement_drives');
+    try {
+        console.log("Adding alt_phone...");
+        await db.query("ALTER TABLE students ADD COLUMN alt_phone VARCHAR(15) NULL");
+    } catch (e) { console.log(e.message); }
 
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS notifications (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                student_id INT,
-                message TEXT,
-                is_read BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log('created notifications');
+    try {
+        console.log("Adding has_backlog...");
+        await db.query("ALTER TABLE students ADD COLUMN has_backlog BOOLEAN DEFAULT FALSE");
+    } catch (e) { console.log(e.message); }
 
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS drive_applications (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                drive_id INT,
-                student_id INT,
-                status VARCHAR(50) DEFAULT 'applied',
-                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        console.log('created drive_applications');
+    try {
+        console.log("Adding backlog_count...");
+        await db.query("ALTER TABLE students ADD COLUMN backlog_count INT DEFAULT 0");
+    } catch (e) { console.log(e.message); }
 
-        console.log('Migrations complete!');
-        process.exit(0);
-    } catch (err) {
-        console.error('Migration failed:', err);
-        process.exit(1);
-    }
-};
+    console.log("Migration complete.");
+    process.exit(0);
+}
 
 migrate();

@@ -4,6 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { API_BASE_URL } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,7 +48,7 @@ export default function AdminFilterPage() {
             if (hasProjects) params.append("has_projects", "true");
 
             // Backend handles department filtering automatically via token
-            const res = await axios.get(`http://localhost:5000/api/admin/students?${params.toString()}`, {
+            const res = await axios.get(`${API_BASE_URL}/api/admin/students?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
@@ -60,7 +62,7 @@ export default function AdminFilterPage() {
 
     const approveStudent = async (id: number) => {
         try {
-            await axios.put(`http://localhost:5000/api/admin/student/${id}/approve`, {}, {
+            await axios.put(`${API_BASE_URL}/api/admin/student/${id}/approve`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             // Update local state
@@ -73,10 +75,10 @@ export default function AdminFilterPage() {
     if (loading || !user) return <p className="p-8">Loading...</p>;
 
     return (
-        <div className="space-y-6 container mx-auto py-8">
-            <div className="flex justify-between items-center">
+        <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800">Filter Students</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Filter Students</h1>
                     <p className="text-gray-500">Shortlist students based on criteria</p>
                 </div>
             </div>
@@ -86,7 +88,7 @@ export default function AdminFilterPage() {
                 <CardHeader>
                     <CardTitle className="text-lg">Filter Criteria</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Min CGPA</label>
                         <Input
@@ -129,8 +131,8 @@ export default function AdminFilterPage() {
                         <label htmlFor="projects" className="text-sm text-gray-700">Has Projects</label>
                     </div>
 
-                    <div className="md:col-span-4 flex justify-end">
-                        <Button onClick={fetchStudents} className="bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
+                    <div className="col-span-1 sm:col-span-2 lg:col-span-4 flex justify-end mt-4 lg:mt-0">
+                        <Button onClick={fetchStudents} className="w-full sm:w-auto bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-2">
                             <Search className="h-4 w-4" />
                             Apply Filters
                         </Button>
@@ -146,18 +148,18 @@ export default function AdminFilterPage() {
                 <CardContent>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b text-gray-500 text-sm">
-                                    <th className="p-3">Name</th>
-                                    <th className="p-3">Branch</th>
-                                    <th className="p-3">CGPA</th>
-                                    <th className="p-3">Skills</th>
-                                    <th className="p-3">Projects</th>
-                                    <th className="p-3">Status</th>
-                                    <th className="p-3">Action</th>
+                            <thead className="bg-slate-50">
+                                <tr className="border-b text-gray-500 text-sm whitespace-nowrap">
+                                    <th className="p-3 font-semibold">Name</th>
+                                    <th className="p-3 font-semibold">Branch</th>
+                                    <th className="p-3 font-semibold">CGPA</th>
+                                    <th className="p-3 font-semibold">Skills</th>
+                                    <th className="p-3 font-semibold">Projects</th>
+                                    <th className="p-3 font-semibold">Status</th>
+                                    <th className="p-3 font-semibold">Action</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y">
+                            <tbody className="divide-y divide-slate-100">
                                 {students.length === 0 && !fetching && (
                                     <tr>
                                         <td colSpan={7} className="p-4 text-center text-gray-500">No students found. Apply filters to search.</td>
@@ -165,7 +167,11 @@ export default function AdminFilterPage() {
                                 )}
                                 {students.map((student) => (
                                     <tr key={student.id} className="hover:bg-gray-50">
-                                        <td className="p-3 font-medium">{student.name}</td>
+                                        <td className="p-3 font-medium">
+                                            <Link href={`/admin/students/${student.id}`} className="text-blue-600 hover:text-blue-800 hover:underline">
+                                                {student.name}
+                                            </Link>
+                                        </td>
                                         <td className="p-3 text-sm text-gray-600">{student.branch}</td>
                                         <td className="p-3 text-sm">{student.cgpa}</td>
                                         <td className="p-3 text-sm text-gray-600">{(student.skills || []).join(', ')}</td>

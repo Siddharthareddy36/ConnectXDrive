@@ -48,3 +48,7 @@ CREATE TABLE IF NOT EXISTS admins (
 -- Hash for admin123: $2a$10$X7.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1
 -- You should generate a real hash in production code or running a script.
 -- For now we can use a placeholder or handle it in seeding.
+
+-- --- Department Indexes ---
+-- Adding a composite index for faster queries on large sets
+CREATE INDEX idx_branch_id ON students (branch, id);

@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Placement Intelligence Portal",
-  description: "College Placement Management System",
+  title: "ConnectXDrive",
+  description: "AI-powered placement intelligence platform",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-gray-50`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased min-h-screen bg-gray-50`}
       >
         <AuthProvider>
           <Navbar />

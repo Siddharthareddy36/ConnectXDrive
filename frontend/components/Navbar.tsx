@@ -11,7 +11,7 @@ export default function Navbar() {
         <nav className="border-b bg-white">
             <div className="flex h-16 items-center px-4 container mx-auto justify-between">
                 <Link href="/" className="text-xl font-bold text-blue-600">
-                    Placement Portal
+                    ConnectXDrive
                 </Link>
 
                 <div className="flex items-center space-x-4">

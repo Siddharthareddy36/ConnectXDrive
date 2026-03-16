@@ -46,8 +46,9 @@ export default function AdminLogin() {
                     <div className="inline-flex items-center justify-center p-4 bg-indigo-100 rounded-full mb-4 shadow-sm ring-1 ring-indigo-200">
                         <Shield className="h-8 w-8 text-indigo-600" />
                     </div>
-                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Admin Portal</h2>
-                    <p className="mt-2 text-sm text-slate-500">Secure access for placement coordinators.</p>
+                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">ConnectXDrive</h2>
+                    <p className="mt-2 text-sm text-slate-500">Campus Placement Intelligence System</p>
+                    <p className="mt-1 text-xs text-indigo-500 font-medium">Admin Portal - Secure access for coordinators</p>
                 </div>
 
                 <Card className="border-slate-200 shadow-xl shadow-slate-200/50 bg-white/80 backdrop-blur-xl">

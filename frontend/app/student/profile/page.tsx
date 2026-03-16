@@ -25,10 +25,13 @@ export default function StudentProfile() {
         name: "", // Read only
         roll_no: "", // Read only
         email: "", // Read only
+        personal_email: "",
         phone: "",
+        alt_phone: "",
         branch: "",
         cgpa: "",
-        backlogs: "0", // Storing as string "0" or "1" for select/logic, will convert on submit
+        has_backlog: "0", // Storing as string "0" or "1" for select/logic, will convert on submit
+        backlog_count: "",
         github: "",
         portfolio: "",
         internship_details: ""
@@ -52,10 +55,13 @@ export default function StudentProfile() {
                 name: data.name || "",
                 roll_no: data.roll_no || "",
                 email: data.email || "",
+                personal_email: data.personal_email || "",
                 phone: data.phone || "",
+                alt_phone: data.alt_phone || "",
                 branch: data.branch || "",
-                cgpa: data.cgpa || "",
-                backlogs: data.backlogs ? "1" : "0",
+                cgpa: data.has_backlog ? "NA" : (data.cgpa || ""),
+                has_backlog: data.has_backlog ? "1" : "0",
+                backlog_count: data.backlog_count || "",
                 github: data.github || "",
                 portfolio: data.portfolio || "",
                 internship_details: data.internship_details || ""
@@ -73,7 +79,11 @@ export default function StudentProfile() {
     };
 
     const handleBacklogsChange = (value: string) => {
-        setFormData({ ...formData, backlogs: value });
+        if (value === "1") {
+            setFormData({ ...formData, has_backlog: value, cgpa: "NA" });
+        } else {
+            setFormData({ ...formData, has_backlog: value, cgpa: "" });
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -90,19 +100,8 @@ export default function StudentProfile() {
             }
             await api.put('/student/profile', {
                 ...formData,
-                backlogs: formData.backlogs === "1" // Convert to boolean for backend check if needed, or 0/1 depending on schema. 
-                // Controller says: `const backlogsVal = backlogs ? 1 : 0;` based on req.body.backlogs truthiness. 
-                // If I send "1" (string), "1" is true. If "0", "0" is true. 
-                // Wait, logic in controller: `const backlogsVal = backlogs ? 1 : 0;` 
-                // If I send boolean true/false it works. 
-                // If I send string "1", it's truthy -> 1. 
-                // If I send string "0", it's truthy -> 1. 
-                // Ah, string "0" is truthy in JS. I must send boolean or empty/null for false if I want 0.
-                // Let's send boolean.
-                // Actually controller logic: `const backlogsVal = backlogs ? 1 : 0;`
-                // So I should send boolean `true` for yes, `false` or `0` or `null` for no.
-                // `formData.backlogs` is "1" or "0".
-                // So: `backlogs: formData.backlogs === "1"`
+                has_backlog: formData.has_backlog === "1",
+                backlog_count: formData.has_backlog === "1" ? parseInt(formData.backlog_count || "0", 10) : 0
             });
             setSuccess("Profile updated successfully!");
         } catch (err: any) {
@@ -123,13 +122,13 @@ export default function StudentProfile() {
     return (
         <ClientOnly>
             <ErrorBoundary>
-                <div className="max-w-5xl mx-auto space-y-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 py-8 pt-6">
                     <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                     >
-                        <h1 className="text-3xl font-bold tracking-tight text-slate-900">My Profile</h1>
-                        <p className="text-slate-500 mt-1">Manage your personal information and academic records.</p>
+                        <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700">My Profile</h1>
+                        <p className="text-sm md:text-base text-slate-500 mt-2">Manage your personal information and academic records with ease.</p>
                     </motion.div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -139,15 +138,21 @@ export default function StudentProfile() {
                             animate={{ opacity: 1, x: 0 }}
                             className="lg:col-span-1"
                         >
-                            <Card className="border-none shadow-sm ring-1 ring-slate-100 bg-white sticky top-24">
+                            <Card className="border border-slate-200/60 shadow-md hover:shadow-lg transition-all duration-300 bg-white sticky top-24 rounded-xl">
                                 <CardHeader className="pb-4">
                                     <CardTitle className="text-lg font-semibold text-slate-800">Profile Completeness</CardTitle>
                                 </CardHeader>
                                 <CardContent className="flex flex-col items-center">
                                     <div className="relative w-32 h-32 flex items-center justify-center">
                                         <svg className="w-full h-full transform -rotate-90">
+                                            <defs>
+                                                <linearGradient id="gradientRing" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                    <stop offset="0%" stopColor="#6366f1" />
+                                                    <stop offset="100%" stopColor="#a855f7" />
+                                                </linearGradient>
+                                            </defs>
                                             <circle cx="64" cy="64" r="56" className="text-slate-100" strokeWidth="12" fill="none" stroke="currentColor" />
-                                            <circle cx="64" cy="64" r="56" className="text-indigo-600 transition-all duration-1000 ease-in-out" strokeWidth="12" fill="none" stroke="currentColor" strokeDasharray="351.8" strokeDashoffset={351.8 - (351.8 * progress) / 100} strokeLinecap="round" />
+                                            <circle cx="64" cy="64" r="56" className="transition-all duration-1000 ease-in-out" strokeWidth="12" fill="none" stroke="url(#gradientRing)" strokeDasharray="351.8" strokeDashoffset={351.8 - (351.8 * progress) / 100} strokeLinecap="round" />
                                         </svg>
                                         <div className="absolute flex flex-col items-center justify-center">
                                             <span className="text-3xl font-bold tracking-tighter text-slate-800">{progress}%</span>
@@ -185,7 +190,7 @@ export default function StudentProfile() {
                                 )}
 
                                 {/* Standard Info Card */}
-                                <Card className="border-none shadow-sm ring-1 ring-slate-100 overflow-hidden relative">
+                                <Card className="border border-slate-200/60 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden relative bg-white rounded-xl">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
                                     <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
                                         <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
@@ -205,17 +210,23 @@ export default function StudentProfile() {
                                             </label>
                                             <Input value={formData.roll_no} disabled className="bg-slate-50 border-slate-200 text-slate-500 shadow-none font-medium" />
                                         </div>
-                                        <div className="space-y-1.5 focus-within:text-indigo-600 transition-colors md:col-span-2">
+                                        <div className="space-y-1.5 focus-within:text-indigo-600 transition-colors md:col-span-1">
                                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                                                 <Mail className="w-3.5 h-3.5" /> College Email
                                             </label>
                                             <Input value={formData.email} disabled className="bg-slate-50 border-slate-200 text-slate-500 shadow-none font-medium" />
                                         </div>
+                                        <div className="space-y-1.5 focus-within:text-indigo-600 transition-colors md:col-span-1">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                                <Mail className="w-3.5 h-3.5" /> Personal Email
+                                            </label>
+                                            <Input type="email" name="personal_email" value={formData.personal_email} onChange={handleChange} placeholder="example@gmail.com" className="transition-all focus:border-indigo-300 focus:ring-indigo-100" />
+                                        </div>
                                     </CardContent>
                                 </Card>
 
                                 {/* Academic details */}
-                                <Card className="border-none shadow-sm ring-1 ring-slate-100 overflow-hidden relative">
+                                <Card className="border border-slate-200/60 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden relative bg-white rounded-xl">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-purple-500" />
                                     <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
                                         <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
@@ -228,6 +239,12 @@ export default function StudentProfile() {
                                                 <Phone className="w-3.5 h-3.5" /> Phone Number
                                             </label>
                                             <Input name="phone" value={formData.phone} onChange={handleChange} placeholder="+91 9876543210" className="transition-all focus:border-purple-300 focus:ring-purple-100" />
+                                        </div>
+                                        <div className="space-y-1.5 group">
+                                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2 group-focus-within:text-purple-600 transition-colors">
+                                                <Phone className="w-3.5 h-3.5" /> Alternate Phone Number
+                                            </label>
+                                            <Input name="alt_phone" type="tel" pattern="[0-9]{10}" maxLength={10} value={formData.alt_phone} onChange={handleChange} placeholder="10 digits" className="transition-all focus:border-purple-300 focus:ring-purple-100" />
                                         </div>
                                         <div className="space-y-1.5 group">
                                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2 group-focus-within:text-purple-600 transition-colors">
@@ -251,7 +268,18 @@ export default function StudentProfile() {
                                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2 group-focus-within:text-purple-600 transition-colors">
                                                 <Target className="w-3.5 h-3.5" /> CGPA
                                             </label>
-                                            <Input name="cgpa" value={formData.cgpa} onChange={handleChange} placeholder="8.5" type="number" step="0.01" min="0" max="10" className="transition-all focus:border-purple-300 focus:ring-purple-100" />
+                                            <Input 
+                                                name="cgpa" 
+                                                value={formData.has_backlog === "1" ? "NA" : formData.cgpa} 
+                                                onChange={handleChange} 
+                                                placeholder="8.5" 
+                                                type={formData.has_backlog === "1" ? "text" : "number"} 
+                                                step="0.01" 
+                                                min="0" 
+                                                max="10" 
+                                                disabled={formData.has_backlog === "1"}
+                                                className={`transition-all focus:border-purple-300 focus:ring-purple-100 ${formData.has_backlog === "1" ? "bg-slate-50 text-slate-500 font-medium cursor-not-allowed" : ""}`} 
+                                            />
                                         </div>
                                         <div className="space-y-1.5 group">
                                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2 group-focus-within:text-purple-600 transition-colors">
@@ -259,19 +287,27 @@ export default function StudentProfile() {
                                             </label>
                                             <select
                                                 className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-300 transition-all"
-                                                value={formData.backlogs}
+                                                value={formData.has_backlog}
                                                 onChange={(e) => handleBacklogsChange(e.target.value)}
                                             >
                                                 <option value="" disabled>Select status</option>
                                                 <option value="0">No backlogs</option>
-                                                <option value="1">Yes, I have backlogs</option>
+                                                <option value="1">Active Backlogs</option>
                                             </select>
                                         </div>
+                                        {formData.has_backlog === "1" && (
+                                            <div className="space-y-1.5 group">
+                                                <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2 group-focus-within:text-purple-600 transition-colors">
+                                                    Number of Active Backlogs
+                                                </label>
+                                                <Input name="backlog_count" type="number" min="1" max="20" value={formData.backlog_count} onChange={handleChange} className="transition-all focus:border-purple-300 focus:ring-purple-100" />
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
 
                                 {/* Links and Details */}
-                                <Card className="border-none shadow-sm ring-1 ring-slate-100 overflow-hidden relative">
+                                <Card className="border border-slate-200/60 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden relative bg-white rounded-xl">
                                     <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
                                     <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
                                         <CardTitle className="text-base font-semibold text-slate-800 flex items-center gap-2">
@@ -295,7 +331,7 @@ export default function StudentProfile() {
                                         </div>
                                         <div className="space-y-1.5 group">
                                             <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2 group-focus-within:text-blue-600 transition-colors">
-                                                <Briefcase className="w-3.5 h-3.5" /> Internship Details
+                                                <Briefcase className="w-3.5 h-3.5" /> Description
                                             </label>
                                             <textarea
                                                 name="internship_details"
@@ -308,9 +344,9 @@ export default function StudentProfile() {
                                     </CardContent>
                                 </Card>
 
-                                <div className="flex justify-end pt-2">
-                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                        <Button type="submit" disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 px-8 py-6 rounded-xl text-base">
+                                <div className="flex flex-col sm:flex-row justify-end pt-2">
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
+                                        <Button type="submit" disabled={saving} className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 hover:scale-105 text-white shadow-lg px-8 py-6 rounded-xl text-base font-semibold transition-all">
                                             {saving ? "Saving Changes..." : "Save Profile Updates"}
                                         </Button>
                                     </motion.div>

@@ -64,9 +64,10 @@ export default function StudentResume() {
             setCurrentResume(res.data.path);
             setFile(null);
             // Optionally update user context if resume path is part of it
-        } catch (err: any) {
-            console.error("Upload failed", err);
-            setMessage({ text: err.response?.data?.message || "Upload failed.", type: "error" });
+        } catch (error: any) {
+            console.log(error);
+            console.error("Upload failed", error);
+            setMessage({ text: error.response?.data?.message || "Upload failed.", type: "error" });
         } finally {
             setUploading(false);
         }

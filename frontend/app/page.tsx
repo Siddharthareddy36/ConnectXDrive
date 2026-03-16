@@ -37,14 +37,13 @@ export default function Home() {
         </div>
 
         <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.1]">
-          Placement <br className="hidden md:block" />
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
-            Intelligence Portal
+            ConnectXDrive
           </span>
         </h1>
 
         <p className="text-xl md:text-2xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
-          Streamlining the college placement process. Manage profiles, track skills, and connect with opportunities efficiently.
+          A modern platform to manage student profiles, track skills, and connect talent with placement opportunities.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">

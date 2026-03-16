@@ -31,20 +31,24 @@ const getProfile = async (req, res) => {
 // @route   PUT /api/student/profile
 // @access  Private (Student)
 const updateProfile = async (req, res) => {
-    const { name, phone, cgpa, backlogs, github, portfolio, internship_details, branch } = req.body;
+    let { name, phone, alt_phone, personal_email, cgpa, has_backlog, backlog_count, github, portfolio, internship_details } = req.body;
 
-    const ALLOWED_BRANCHES = ['DS', 'IT', 'AIML', 'CS-Cybersecurity', 'CSE'];
-    if (branch && !ALLOWED_BRANCHES.includes(branch)) {
-        return res.status(400).json({ message: 'Invalid branch selected' });
+    let final_backlog_count = parseInt(backlog_count) || 0;
+    const has_backlog_val = (has_backlog === true || has_backlog === 'true' || has_backlog === 1);
+
+    if (!has_backlog_val) {
+        final_backlog_count = 0;
+    } else {
+        cgpa = null; // Force null when backlogs are present
+        if (final_backlog_count < 1) {
+            return res.status(400).json({ message: 'Number of active backlogs must be greater than 0.' });
+        }
     }
-
-    // Convert backlogs to boolean/int 0/1
-    const backlogsVal = backlogs ? 1 : 0;
 
     try {
         await db.query(
-            'UPDATE students SET name = ?, phone = ?, cgpa = ?, backlogs = ?, github = ?, portfolio = ?, internship_details = ?, branch = ? WHERE id = ?',
-            [name, phone, cgpa, backlogsVal, github, portfolio, internship_details, branch, req.user.id]
+            'UPDATE students SET name = ?, phone = ?, alt_phone = ?, personal_email = ?, cgpa = ?, has_backlog = ?, backlog_count = ?, github = ?, portfolio = ?, internship_details = ? WHERE id = ?',
+            [name, phone, alt_phone, personal_email, cgpa, has_backlog_val, final_backlog_count, github, portfolio, internship_details, req.user.id]
         );
         res.json({ message: 'Profile updated successfully' });
     } catch (error) {
@@ -173,11 +177,21 @@ const getEligibleDrives = async (req, res) => {
 
         const branch = students[0].branch;
 
-        const [drives] = await db.query(
-            "SELECT * FROM placement_drives WHERE eligible_departments LIKE ? AND status = 'active' ORDER BY drive_date ASC",
+        // Ensure drive_start_date is handled; fallback to drive_date if null
+        const [upcoming_drives] = await db.query(
+            "SELECT * FROM placement_drives WHERE eligible_departments LIKE ? AND COALESCE(drive_start_date, drive_date) > CURDATE() AND status = 'active' ORDER BY COALESCE(drive_start_date, drive_date) ASC",
             [`%${branch}%`]
         );
-        res.json(drives);
+
+        const [ongoing_drives] = await db.query(
+            "SELECT * FROM placement_drives WHERE eligible_departments LIKE ? AND COALESCE(drive_start_date, drive_date) <= CURDATE() AND COALESCE(drive_end_date, application_deadline) >= CURDATE() AND status = 'active' ORDER BY COALESCE(drive_start_date, drive_date) ASC",
+            [`%${branch}%`]
+        );
+
+        res.json({
+            upcoming_drives,
+            ongoing_drives
+        });
     } catch (error) {
         console.error('Error fetching eligible drives:', error);
         res.status(500).json({ message: 'Server error' });
@@ -253,7 +267,122 @@ const getStudentApplications = async (req, res) => {
     }
 };
 
+// @desc    Get student settings
+// @route   GET /api/student/settings
+// @access  Private (Student)
+const getSettings = async (req, res) => {
+    try {
+        const [students] = await db.query('SELECT name, email, phone, roll_no, branch, linkedin_url, github_url, portfolio_url FROM students WHERE id = ?', [req.user.id]);
+        if (students.length === 0) return res.status(404).json({ message: 'Student not found' });
+        
+        const [prefs] = await db.query('SELECT drive_notifications, application_updates, shortlist_alerts FROM notification_preferences WHERE user_id = ? AND role = "student"', [req.user.id]);
+        
+        const settings = {
+            account: {
+                name: students[0].name,
+                email: students[0].email,
+                phone: students[0].phone || '',
+                roll_no: students[0].roll_no,
+                branch: students[0].branch
+            },
+            links: {
+                linkedin_url: students[0].linkedin_url || '',
+                github_url: students[0].github_url || '',
+                portfolio_url: students[0].portfolio_url || ''
+            },
+            notifications: prefs.length > 0 ? prefs[0] : { drive_notifications: true, application_updates: true, shortlist_alerts: true }
+        };
+        
+        res.json(settings);
+    } catch (error) {
+        console.error('Error fetching settings:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Update student account info
+// @route   PUT /api/student/update-account
+// @access  Private (Student)
+const updateAccount = async (req, res) => {
+    const { name, email, phone } = req.body;
+    try {
+        await db.query('UPDATE students SET name = ?, email = ?, phone = ? WHERE id = ?', [name, email, phone, req.user.id]);
+        
+        const [updatedStudent] = await db.query('SELECT id, name, email, phone, roll_no, branch FROM students WHERE id = ?', [req.user.id]);
+        res.json({ message: 'Account updated successfully', student: updatedStudent[0] });
+    } catch (error) {
+        console.error('Error updating account:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Update student professional links
+// @route   PUT /api/student/update-links
+// @access  Private (Student)
+const updateLinks = async (req, res) => {
+    const { linkedin_url, github_url, portfolio_url } = req.body;
+    try {
+        await db.query('UPDATE students SET linkedin_url = ?, github_url = ?, portfolio_url = ? WHERE id = ?', 
+            [linkedin_url, github_url, portfolio_url, req.user.id]);
+        res.json({ message: 'Links updated successfully' });
+    } catch (error) {
+        console.error('Error updating links:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Change student password
+// @route   PUT /api/student/change-password
+// @access  Private (Student)
+const changePassword = async (req, res) => {
+    const { current_password, new_password } = req.body;
+    try {
+        const [students] = await db.query('SELECT password FROM students WHERE id = ?', [req.user.id]);
+        if (students.length === 0) return res.status(404).json({ message: 'Student not found' });
+        
+        const bcrypt = require('bcryptjs');
+        const isMatch = await bcrypt.compare(current_password, students[0].password);
+        if (!isMatch) return res.status(400).json({ message: 'Incorrect current password' });
+        
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(new_password, salt);
+        
+        await db.query('UPDATE students SET password = ? WHERE id = ?', [hashedPassword, req.user.id]);
+        res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+        console.error('Error changing password:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Update student notification settings
+// @route   PUT /api/student/notification-settings
+// @access  Private (Student)
+const updateNotificationSettings = async (req, res) => {
+    const { drive_notifications, application_updates, shortlist_alerts } = req.body;
+    try {
+        const [existing] = await db.query('SELECT id FROM notification_preferences WHERE user_id = ? AND role = "student"', [req.user.id]);
+        
+        if (existing.length > 0) {
+            await db.query(`UPDATE notification_preferences 
+                SET drive_notifications = ?, application_updates = ?, shortlist_alerts = ? 
+                WHERE id = ?`, 
+                [drive_notifications, application_updates, shortlist_alerts, existing[0].id]);
+        } else {
+            await db.query(`INSERT INTO notification_preferences 
+                (user_id, role, drive_notifications, application_updates, shortlist_alerts) 
+                VALUES (?, "student", ?, ?, ?)`, 
+                [req.user.id, drive_notifications, application_updates, shortlist_alerts]);
+        }
+        res.json({ message: 'Notification preferences updated successfully' });
+    } catch (error) {
+        console.error('Error updating notifications:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     getProfile, updateProfile, getSkills, addSkill, deleteSkill, getProjects, addProject, deleteProject, uploadResume,
-    getEligibleDrives, applyForDrive, getStudentApplications
+    getEligibleDrives, applyForDrive, getStudentApplications,
+    getSettings, updateAccount, updateLinks, changePassword, updateNotificationSettings
 };
